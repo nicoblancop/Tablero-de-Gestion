@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero de Gestión: Team Blanco Pan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: { 950: '#030712', 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
+                        sky: { 600: '#0284c7', 500: '#0ea5e9', 400: '#38bdf8', 100: '#e0f2fe', 50: '#f0f9ff' },
+                        warning: { 600: '#d97706', 500: '#f59e0b', 100: '#fef3c7' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .tab-active { border-bottom: 2px solid #0ea5e9; color: #0284c7; font-weight: 600; }
+        .tab-inactive { color: #64748b; }
+        .tab-inactive:hover { color: #0f172a; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
+
+    <header class="bg-navy-900 text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center font-bold text-white shadow">
+                    BP
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold tracking-tight leading-none">Tablero de Gestión: <span class="text-sky-400 font-bold">Team Blanco Pan</span></h1>
+                    <span id="header-date-range" class="text-[11px] text-slate-400 font-medium">Período: Sin datos cargados</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="loadSampleData()" class="text-xs bg-navy-800 hover:bg-navy-700 text-sky-400 border border-slate-700 font-medium px-3 py-1.5 rounded transition shadow-sm flex items-center space-x-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span>Cargar Datos de Ejemplo (Selección)</span>
+                </button>
+                <div id="status-indicators" class="hidden sm:flex space-x-1.5 text-[11px]">
+                    <span id="badge-comisiones" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Comisiones</span>
+                    <span id="badge-cluster" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Cluster</span>
+                    <span id="badge-tenencias" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Tenencias</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="bg-white border-b border-slate-200 shadow-sm sticky top-16 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-center justify-between py-2.5 gap-3">
+            <nav class="flex space-x-6 text-xs sm:text-sm overflow-x-auto">
+                <button onclick="switchTab('resumen')" id="tab-resumen" class="py-1.5 tab-active transition whitespace-nowrap">1. Resumen & Comisiones</button>
+                <button onclick="switchTab('cluster')" id="tab-cluster" class="py-1.5 tab-inactive transition whitespace-nowrap">2. Cluster & Oportunidades</button>
+                <button onclick="switchTab('tenencias')" id="tab-tenencias" class="py-1.5 tab-inactive transition whitespace-nowrap">3. Tenencias & Cartera</button>
+                <button onclick="switchTab('tickers')" id="tab-tickers" class="py-1.5 tab-inactive transition whitespace-nowrap font-medium">4. Consolidado por Ticker</button>
+            </nav>
+            <div class="flex items-center space-x-2">
+                <label class="cursor-pointer bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 text-[11px] font-semibold px-2.5 py-1.5 rounded border border-slate-300 hover:border-sky-300 transition flex items-center space-x-1">
+                    <span>+ Comisiones</span>
+                    <input type="file" id="file-comisiones" class="hidden" accept=".csv,.xlsx,.xls" onchange="handleFileUpload(event, 'comisiones')">
+                </label>
+                <label class="cursor-pointer bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 text-[11px] font-semibold px-2.5 py-1.5 rounded border border-slate-300 hover:border-sky-300 transition flex items-center space-x-1">
+                    <span>+ Cluster</span>
+                    <input type="file" id="file-cluster" class="hidden" accept=".csv,.xlsx,.xls" onchange="handleFileUpload(event, 'cluster')">
+                </label>
+                <label class="cursor-pointer bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 text-[11px] font-semibold px-2.5 py-1.5 rounded border border-slate-300 hover:border-sky-300 transition flex items-center space-x-1">
+                    <span>+ Tenencias</span>
+                    <input type="file" id="file-tenencias" class="hidden" accept=".csv,.xlsx,.xls" onchange="handleFileUpload(event, 'tenencias')">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full flex flex-col justify-between">
+        
+        <div id="view-resumen" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Comisiones Mes (USD)</p>
+                    <h3 id="kpi-comisiones-mes" class="text-2xl font-black text-navy-900 mt-0.5">$0.00</h3>
+                    <p id="kpi-date-subtext" class="text-[11px] text-slate-500 mt-1">Sube archivo de comisiones</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Running Rate Proyectado</p>
+                    <h3 id="kpi-running-rate" class="text-2xl font-black text-sky-600 mt-0.5">$0.00</h3>
+                    <p id="kpi-rr-subtext" class="text-[11px] text-slate-500 mt-1">Proyección al último día del mes</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">AUM Total Administrado</p>
+                    <h3 id="kpi-aum-total" class="text-2xl font-black text-navy-900 mt-0.5">$0.00</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">Según archivo de Cluster</p>
+                </div>
+                <div id="box-roa" class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm transition-colors">
+                    <div class="flex justify-between items-start">
+                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ROA Anualizado Est.</p>
+                        <span id="kpi-roa-badge" class="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-600">N/A</span>
+                    </div>
+                    <h3 id="kpi-roa" class="text-2xl font-black text-navy-900 mt-0.5">0.00%</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">100% s/ Comisiones Mes | Obj: ≥ 1.5%</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm lg:col-span-1 flex flex-col">
+                    <div class="border-b pb-3 mb-4">
+                        <h4 class="font-bold text-navy-900 text-sm">Comisiones por Subasesor</h4>
+                        <p class="text-[11px] text-slate-400">Share del mes analizado</p>
+                    </div>
+                    <div class="flex-1 min-h-[260px] flex items-center justify-center relative">
+                        <canvas id="chart-subasesores"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm lg:col-span-2 flex flex-col">
+                    <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <div>
+                            <h4 class="font-bold text-navy-900 text-sm">Ranking de Clientes por Comisiones en el Mes</h4>
+                            <p class="text-[11px] text-slate-400">Generación directa según período analizado</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                                    <th class="pb-2">Comitente / Cliente</th>
+                                    <th class="pb-2">Subasesor</th>
+                                    <th class="pb-2 text-right">Comisión ($ USD)</th>
+                                    <th class="pb-2 text-right">% Share</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-top-clientes-coms" class="divide-y divide-slate-100 font-medium">
+                                <tr><td colspan="4" class="py-6 text-center text-slate-400">Sin datos cargados.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <div>
+                        <h4 class="font-bold text-navy-900 text-sm">Flujo Operativo por Ticker (Compra vs Venta)</h4>
+                        <p class="text-[11px] text-slate-400">Clasificación automática por descripción del boleto</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                                <th class="pb-2">Ticker</th>
+                                <th class="pb-2 text-right">Total Comisiones ($ USD)</th>
+                                <th class="pb-2 text-right">% Compra</th>
+                                <th class="pb-2 text-right">% Venta</th>
+                                <th class="pb-2 text-right">Operaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-top-tickers" class="divide-y divide-slate-100 font-medium">
+                            <tr><td colspan="5" class="py-6 text-center text-slate-400">Sin datos cargados.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-cluster" class="space-y-6 hidden">
+            <div id="alert-descubiertos" class="bg-amber-50 border border-amber-300 rounded-lg p-4 hidden shadow-sm">
+                <div class="flex items-center space-x-2 text-amber-950 font-bold text-xs sm:text-sm mb-2.5">
+                    <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span>Alerta de Descubiertos Detectados (Solo &gt; $50.000 ARS en Pesos o &gt; $50 USD en MEP/Cable)</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-amber-950">
+                        <thead>
+                            <tr class="border-b border-amber-200 font-bold text-[11px] uppercase">
+                                <th class="py-1.5">Cuenta / Titular</th>
+                                <th class="py-1.5">Asesor</th>
+                                <th class="py-1.5 text-right">Saldo Pesos ($ Operables)</th>
+                                <th class="py-1.5 text-right">Saldo MEP (MEP Operables)</th>
+                                <th class="py-1.5 text-right">Dólares Cable (CV7000 + Cable Operables)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-descubiertos" class="divide-y divide-amber-200/60 font-medium"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                    <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <h4 class="font-bold text-navy-900 text-sm">Top Clientes Cluster (AUM vs Comisiones 180d)</h4>
+                        <select id="sort-cluster-top" onchange="renderCluster()" class="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:border-sky-500">
+                            <option value="aum">Ordenar por AUM</option>
+                            <option value="com180">Ordenar por Comisiones 180d</option>
+                        </select>
+                    </div>
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                                    <th class="pb-2">Titular</th>
+                                    <th class="pb-2">Asesor</th>
+                                    <th class="pb-2 text-right">AUM ($ USD)</th>
+                                    <th class="pb-2 text-right">Com. 180d ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-top-cluster" class="divide-y divide-slate-100 font-medium">
+                                <tr><td colspan="4" class="py-6 text-center text-slate-400">Sube archivo de Cluster.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                    <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <div>
+                            <h4 class="font-bold text-navy-900 text-sm">Oportunidades: ROA Bajo & Alta Liquidez</h4>
+                            <p class="text-[11px] text-slate-400">ROA anualizado según Comisiones 180d &lt; 1.2% y capital disponible</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                                    <th class="pb-2">Titular</th>
+                                    <th class="pb-2 text-right">Liquidez Total Est. ($ USD)</th>
+                                    <th class="pb-2 text-right">AUM ($ USD)</th>
+                                    <th class="pb-2 text-right">ROA 180d Est.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-opportunities" class="divide-y divide-slate-100 font-medium">
+                                <tr><td colspan="4" class="py-6 text-center text-slate-400">Sube archivo de Cluster.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 mb-4 gap-3">
+                    <div>
+                        <h4 class="font-bold text-navy-900 text-sm">Simulador de Optimización de Aranceles (ROA según Comisiones 180d)</h4>
+                        <p class="text-xs text-slate-500">Evalúa el impacto de ajustar esquemas comerciales en cuentas con ROA 180d sub-óptimo (&lt; 1.2%).</p>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded border border-slate-200 text-xs">
+                        <span class="font-bold text-slate-700">Ajuste proyectado:</span>
+                        <select id="sim-bps" onchange="renderCluster()" class="bg-white border border-slate-300 rounded px-2.5 py-1 font-bold text-sky-600 focus:outline-none">
+                            <option value="0.0010">+10 bps (+0.10%)</option>
+                            <option value="0.0025" selected>+25 bps (+0.25%)</option>
+                            <option value="0.0050">+50 bps (+0.50%)</option>
+                            <option value="0.0100">+100 bps (+1.00%)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <p class="text-[11px] font-bold text-slate-400 uppercase">AUM en Aranceles Sub-Óptimos</p>
+                        <h3 id="sim-aum-sub" class="text-xl font-black text-navy-900 mt-1">$0.00</h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Cartera con ROA 180d &lt; 1.2%</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-navy-900 to-slate-800 text-white p-4 rounded-lg shadow-sm">
+                        <p class="text-[11px] font-bold text-sky-400 uppercase">Ingreso Anual Adicional Proyectado</p>
+                        <h3 id="sim-revenue" class="text-2xl font-black text-white mt-1">$0.00 / año</h3>
+                        <p class="text-[11px] text-slate-300 mt-0.5">Al aplicar el incremento en la cartera sub-óptima</p>
+                    </div>
+                    <div class="text-xs text-slate-600 space-y-1.5">
+                        <p class="font-bold text-navy-900">Estrategias de Optimización:</p>
+                        <ul class="list-disc pl-4 space-y-1 text-[11px]">
+                            <li>Revisar cuentas IFA 3/IFA 4 con alta transaccionalidad y aranceles reducidos.</li>
+                            <li>Activar saldos en efectivo sin rendimiento (Fondos Money Market / Cauciones).</li>
+                            <li>Monitorear clientes de alto patrimonio con esquemas comerciales desactualizados.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-tenencias" class="space-y-6 hidden">
+            <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div class="flex items-center space-x-3 flex-1">
+                    <div class="relative w-full md:w-72">
+                        <input type="text" id="filter-ticker" oninput="renderTenencias()" placeholder="Filtrar por Ticker o Instrumento..." class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:border-sky-500 transition font-medium">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div class="flex items-center space-x-2 text-xs text-slate-600">
+                        <span>Días tenencia mín:</span>
+                        <input type="number" id="filter-dias" oninput="renderTenencias()" value="0" min="0" class="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-center font-bold">
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 text-xs">
+                    <span class="text-slate-400">Ordenar por:</span>
+                    <select id="sort-tenencias" onchange="renderTenencias()" class="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 font-semibold text-slate-700 focus:outline-none">
+                        <option value="valuacion">Mayor Valuación ($)</option>
+                        <option value="ganancia-abs">Mayor Ganancia ($)</option>
+                        <option value="ganancia-pct">Mayor Ganancia (%)</option>
+                        <option value="dias">Más Días en Cartera</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-[11px] text-slate-400 font-bold uppercase">Total Valuado en Pantalla</p>
+                        <h3 id="ten-total-val" class="text-lg font-black text-navy-900 mt-0.5">$0.00</h3>
+                    </div>
+                    <span class="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-700 rounded">Cartera</span>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-[11px] text-slate-400 font-bold uppercase">Posición con Mayor Ganancia</p>
+                        <h3 id="ten-top-gain" class="text-lg font-black text-emerald-600 mt-0.5">N/A</h3>
+                    </div>
+                    <span id="ten-top-gain-val" class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">$0.00</span>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-[11px] text-slate-400 font-bold uppercase">Ticker Más Frecuente</p>
+                        <h3 id="ten-top-ticker" class="text-lg font-black text-navy-900 mt-0.5">N/A</h3>
+                    </div>
+                    <span id="ten-top-ticker-count" class="text-xs font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">0 cuentas</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                                <th class="pb-2">Titular / Comitente</th>
+                                <th class="pb-2">Asesor</th>
+                                <th class="pb-2">Instrumento (Ticker)</th>
+                                <th class="pb-2 text-right">Nominales</th>
+                                <th class="pb-2 text-right">Precio Compra</th>
+                                <th class="pb-2 text-right">Valuación ($)</th>
+                                <th class="pb-2 text-right">Ganancia Est. ($ / %)</th>
+                                <th class="pb-2 text-right">Días</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-tenencias" class="divide-y divide-slate-100 text-xs font-medium">
+                            <tr><td colspan="8" class="py-6 text-center text-slate-400">Sube archivo de Tenencias.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-tickers" class="space-y-6 hidden">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase">Tickers Únicos en Pantalla</p>
+                    <h3 id="tick-total-count" class="text-2xl font-black text-navy-900 mt-0.5">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase">Ticker con Mayor AUM</p>
+                    <h3 id="tick-top-aum" class="text-xl font-black text-sky-600 mt-0.5">N/A</h3>
+                    <p id="tick-top-aum-val" class="text-[11px] text-slate-500">$0.00</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase">Ticker Más Comisionador (Mes)</p>
+                    <h3 id="tick-top-coms" class="text-xl font-black text-emerald-600 mt-0.5">N/A</h3>
+                    <p id="tick-top-coms-val" class="text-[11px] text-slate-500">$0.00 en comisiones</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div class="relative w-full sm:w-72">
+                        <input type="text" id="filter-consolidado-ticker" oninput="renderConsolidadoTickers()" placeholder="Buscar por Ticker (ej: MELI, GGAL)..." class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 font-medium focus:outline-none focus:border-sky-500 transition">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <div class="flex items-center space-x-2 text-xs">
+                        <span class="text-slate-400 font-medium">Ordenar por:</span>
+                        <select id="sort-consolidado" onchange="renderConsolidadoTickers()" class="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 font-bold text-slate-700 focus:outline-none">
+                            <option value="val">Mayor Valuación ($ USD)</option>
+                            <option value="comisiones">Mayor Comisión ($ USD)</option>
+                            <option value="ganancia">Mayor Ganancia Prom. (%)</option>
+                            <option value="cuentas">Mayor Frecuencia (Cuentas)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-4 text-xs">
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-600 font-medium">Valuación Mínima (USD):</span>
+                        <input type="number" id="filter-cons-min-val" oninput="renderConsolidadoTickers()" value="0" step="1000" min="0" class="w-24 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-right font-bold text-navy-900">
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-600 font-medium">Cuentas Tenedoras Mín:</span>
+                        <input type="number" id="filter-cons-min-cuentas" oninput="renderConsolidadoTickers()" value="1" min="1" class="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-center font-bold text-navy-900">
+                    </div>
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-slate-700 font-medium select-none">
+                        <input type="checkbox" id="filter-cons-solo-coms" onchange="renderConsolidadoTickers()" class="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5">
+                        <span>Solo Tickers con Comisiones en el Mes</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                                <th class="pb-2">Ticker</th>
+                                <th class="pb-2 text-right">Valuación Total ($ USD)</th>
+                                <th class="pb-2 text-right">% Cartera</th>
+                                <th class="pb-2 text-right">Cuentas</th>
+                                <th class="pb-2 text-right">Comisiones Mes ($)</th>
+                                <th class="pb-2 text-right">Ganancia Prom. (%)</th>
+                                <th class="pb-2 text-right">Días Prom.</th>
+                                <th class="pb-2 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-consolidado-tickers" class="divide-y divide-slate-100 font-medium">
+                            <tr><td colspan="8" class="py-6 text-center text-slate-400">Sube archivo de Tenencias y Comisiones para consolidar.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-4 border-t border-slate-200 text-slate-500 text-xs text-center font-medium">
+            Disclaimer: Esta es una herramienta interna de gestión para el Team Blanco Pan y puede contener errores.
+        </div>
+
+    </main>
+
+    <div id="modal-ticker-detail" class="fixed inset-0 bg-navy-950/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden">
+            <div class="bg-navy-900 text-white p-4 flex items-center justify-between border-b border-slate-800">
+                <div>
+                    <span class="text-[10px] text-sky-400 font-bold uppercase tracking-wider">Detalle de Tenencia por Instrumento</span>
+                    <h3 id="modal-ticker-title" class="text-lg font-black">TICKER</h3>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="font-bold text-slate-400 border-b border-slate-100 uppercase text-[10px]">
+                            <th class="pb-2">Comitente / Titular</th>
+                            <th class="pb-2">Asesor</th>
+                            <th class="pb-2 text-right">Nominales</th>
+                            <th class="pb-2 text-right">Valuación ($ USD)</th>
+                            <th class="pb-2 text-right">Ganancia (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-ticker-body" class="divide-y divide-slate-100 font-medium"></tbody>
+                </table>
+            </div>
+            <div class="bg-slate-50 p-3 border-t border-slate-200 flex justify-end">
+                <button onclick="closeModal()" class="bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold px-4 py-1.5 rounded transition">Cerrar Panel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado global
+        let appState = { comisiones: [], cluster: [], tenencias: [], dateRangeText: "" };
+        let chartSubasesoresInstance = null;
+
+        function switchTab(tabId) {
+            ['resumen', 'cluster', 'tenencias', 'tickers'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).className = 'py-1.5 tab-inactive transition whitespace-nowrap';
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).className = 'py-1.5 tab-active transition whitespace-nowrap font-bold';
+            if (tabId === 'tickers') renderConsolidadoTickers();
+        }
+
+        function formatCurrency(num) {
+            if (isNaN(num) || num === null) return '$0.00';
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+        }
+
+        function parseNumber(val) {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            let clean = val.toString().trim().replace(/[^0-9.-]/g, '');
+            let parsed = parseFloat(clean);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+
+        // PARSER DE FECHAS ROBUSTO (Resuelve los errores 46174 y 1969 de Excel/JS)
+        function parseDate(val) {
+            if (!val) return null;
+            if (val instanceof Date) return isNaN(val) ? null : val;
+            
+            // Detectar números de serie de Excel (ej: 46174 -> 01/06/2026)
+            if (typeof val === 'number' || (typeof val === 'string' && !isNaN(val) && Number(val) > 30000 && Number(val) < 70000)) {
+                const serial = Number(val);
+                const utcDays = Math.floor(serial - 25569);
+                const utcValue = utcDays * 86400;
+                const dateInfo = new Date(utcValue * 1000);
+                return new Date(dateInfo.getUTCFullYear(), dateInfo.getUTCMonth(), dateInfo.getUTCDate());
+            }
+            
+            const str = val.toString().trim();
+            // Detectar formato DD/MM/YYYY o DD-MM-YYYY
+            const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (dmyMatch) {
+                return new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+            }
+            // ISO estándar YYYY-MM-DD
+            const parsed = new Date(str);
+            return isNaN(parsed) ? null : parsed;
+        }
+
+        function handleFileUpload(event, type) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            const fileName = file.name.toLowerCase();
+
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                reader.onload = function(e) {
+                    const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""});
+                    processData(json, type);
+                    updateBadge(type, true);
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                Papa.parse(file, {
+                    header: true, dynamicTyping: true, skipEmptyLines: true,
+                    complete: function(results) { processData(results.data, type); updateBadge(type, true); }
+                });
+            }
+        }
+
+        function updateBadge(type, success) {
+            const badge = document.getElementById(`badge-${type}`);
+            if (success) {
+                badge.className = "px-2 py-0.5 rounded bg-sky-900 text-sky-200 font-semibold border border-sky-700";
+                badge.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)}: OK`;
+            }
+        }
+
+        function processData(data, type) {
+            if (type === 'comisiones') {
+                let fechas = [];
+                appState.comisiones = data.map(row => {
+                    const d = parseDate(row['FechaConcertacion'] || row['fecha']);
+                    if (d && d.getFullYear() > 2000) fechas.push(d);
+                    return {
+                        fecha: d, // Guardado interno para cálculo instantáneo en Running Rate
+                        asesor: row['Asesor'] || row['asesor'] || row['Productor'] || 'Sin Asesor',
+                        comitente: row['Comitente'] || row['comitente'] || '',
+                        cliente: row['Cuenta'] || row['cuenta'] || `Comitente ${row['Comitente'] || ''}`,
+                        tipo: row['Tipo'] || '',
+                        descripcion: row['Descripcion'] || '',
+                        ticker: row['Ticker'] || row['ticker'] || 'Varios',
+                        comisionDolarizada: parseNumber(row['ComisionDolarizada'] || row['comisionDolarizada'])
+                    };
+                }).filter(r => r.comisionDolarizada > 0 || r.ticker !== 'Varios');
+
+                // Formateo estricto DD/MM/YYYY sin error de año
+                if (fechas.length > 0) {
+                    const minDate = new Date(Math.min.apply(null, fechas));
+                    const maxDate = new Date(Math.max.apply(null, fechas));
+                    const fmt = d => {
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        return `${day}/${month}/${d.getFullYear()}`;
+                    };
+                    appState.dateRangeText = `Período: ${fmt(minDate)} al ${fmt(maxDate)}`;
+                    document.getElementById('header-date-range').textContent = appState.dateRangeText;
+                    document.getElementById('kpi-date-subtext').textContent = appState.dateRangeText;
+                }
+                renderResumen();
+            } else if (type === 'cluster') {
+                appState.cluster = data.map(row => ({
+                    comitente: row['comitente'] || row['idcuenta'] || '',
+                    cliente: row['cuenta'] || row['Titular 1'] || 'Cliente Sin Nombre',
+                    asesor: row['asesor'] || 'Sin Asesor',
+                    aum: parseNumber(row['AUM en Dolares']),
+                    com180: parseNumber(row['Comision 180']),
+                    arancel: row['arancel'] || 'IFA Estándar',
+                    pesos: parseNumber(row['$ Operables CI'] || row['pesos']),
+                    mep: parseNumber(row['MEP Operables CI'] || row['mep']),
+                    cable: parseNumber(row['cv7000']) + parseNumber(row['Cable Operables CI'] || row['cable'])
+                }));
+                renderResumen();
+                renderCluster();
+            } else if (type === 'tenencias') {
+                appState.tenencias = data.map(row => ({
+                    comitente: row['comitente'] || '',
+                    cliente: row['cuenta'] || 'Cliente Sin Nombre',
+                    asesor: row['asesor'] || 'Sin Asesor',
+                    tenencia: parseNumber(row['tenencia']),
+                    diastenencia: parseNumber(row['diastenencia']),
+                    preciocompra: parseNumber(row['preciocompra']),
+                    instrumento: row['instrumento'] || '',
+                    ticker: row['ticker'] || 'N/A',
+                    nominales: parseNumber(row['nominales'])
+                })).filter(r => r.tenencia > 0);
+                renderTenencias();
+            }
+        }
+
+        // Render: Página 1 (Resumen & Comisiones)
+        function renderResumen() {
+            const totalComs = appState.comisiones.reduce((sum, r) => sum + r.comisionDolarizada, 0);
+            document.getElementById('kpi-comisiones-mes').textContent = formatCurrency(totalComs);
+            
+            // CÁLCULO DE RUNNING RATE BASADO EN DÍAS CALENDARIO DEL MES
+            let runningRate = totalComs;
+            if (appState.comisiones.length > 0 && totalComs > 0) {
+                const fechas = appState.comisiones
+                    .map(r => r.fecha || parseDate(r.FechaConcertacion || r.fechaStr))
+                    .filter(d => d !== null && !isNaN(d));
+
+                if (fechas.length > 0) {
+                    const minDate = new Date(Math.min.apply(null, fechas));
+                    const maxDate = new Date(Math.max.apply(null, fechas));
+
+                    // Días calendario transcurridos entre el primer y último día registrado
+                    const diffTime = Math.abs(maxDate - minDate);
+                    const diasTranscurridos = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+                    // Último día calendario del mes de la fecha máxima (ej: junio = 30)
+                    const diasTotalesMes = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0).getDate();
+
+                    runningRate = (totalComs / diasTranscurridos) * diasTotalesMes;
+                    document.getElementById('kpi-rr-subtext').textContent = `Proyectado de ${diasTranscurridos} a ${diasTotalesMes} días`;
+                }
+            }
+            document.getElementById('kpi-running-rate').textContent = formatCurrency(runningRate);
+
+            const totalAUM = appState.cluster.reduce((sum, r) => sum + r.aum, 0);
+            document.getElementById('kpi-aum-total').textContent = formatCurrency(totalAUM);
+
+            // 1. ROA Página 1: 100% ESTRICTAMENTE EN BASE AL EXCEL DE COMISIONES DEL MES
+            const roaEl = document.getElementById('kpi-roa');
+            const roaBadge = document.getElementById('kpi-roa-badge');
+            const boxRoa = document.getElementById('box-roa');
+
+            if (totalAUM > 0 && totalComs > 0) {
+                const roaComsMes = ((totalComs * 12) / totalAUM) * 100;
+                roaEl.textContent = `${roaComsMes.toFixed(2)}%`;
+                
+                if (roaComsMes < 1.20) {
+                    roaEl.className = "text-2xl font-black text-warning-600 mt-0.5";
+                    roaBadge.className = "text-[10px] px-2 py-0.5 rounded font-bold bg-warning-100 text-warning-600 border border-warning-500/30";
+                    roaBadge.textContent = "Alerta (< 1.2%)";
+                    boxRoa.className = "bg-amber-50/40 p-4 rounded-lg border border-warning-500/40 shadow-sm transition-colors";
+                } else if (roaComsMes < 1.50) {
+                    roaEl.className = "text-2xl font-black text-sky-600 mt-0.5";
+                    roaBadge.className = "text-[10px] px-2 py-0.5 rounded font-bold bg-sky-100 text-sky-700 border border-sky-300";
+                    roaBadge.textContent = "En Rango (1.2% - 1.5%)";
+                    boxRoa.className = "bg-white p-4 rounded-lg border border-slate-200 shadow-sm transition-colors";
+                } else {
+                    roaEl.className = "text-2xl font-black text-emerald-600 mt-0.5";
+                    roaBadge.className = "text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+                    roaBadge.textContent = "⭐ Objetivo Met (≥ 1.5%)";
+                    boxRoa.className = "bg-emerald-50/30 p-4 rounded-lg border border-emerald-300 shadow-sm transition-colors";
+                }
+            }
+
+            // Gráfico de Dona de Subasesores
+            const subasesoresMap = {};
+            appState.comisiones.forEach(r => subasesoresMap[r.asesor] = (subasesoresMap[r.asesor] || 0) + r.comisionDolarizada);
+            const subNames = Object.keys(subasesoresMap);
+            const subVals = Object.values(subasesoresMap);
+
+            if (chartSubasesoresInstance) chartSubasesoresInstance.destroy();
+            const ctx = document.getElementById('chart-subasesores').getContext('2d');
+            chartSubasesoresInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: subNames.length ? subNames : ['Sin Datos'],
+                    datasets: [{
+                        data: subVals.length ? subVals : [1],
+                        backgroundColor: ['#0f172a', '#0284c7', '#1e293b', '#0ea5e9', '#334155', '#38bdf8', '#64748b'],
+                        borderWidth: 1,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } }
+                    }
+                }
+            });
+
+            // Ranking Clientes Comisiones Mes
+            const clienteComsMap = {};
+            appState.comisiones.forEach(r => {
+                const key = `${r.comitente}||${r.cliente}||${r.asesor}`;
+                clienteComsMap[key] = (clienteComsMap[key] || 0) + r.comisionDolarizada;
+            });
+            const sortedClientesComs = Object.entries(clienteComsMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+            const tbodyClientesComs = document.getElementById('table-top-clientes-coms');
+            if (sortedClientesComs.length > 0) {
+                tbodyClientesComs.innerHTML = sortedClientesComs.map(([key, val]) => {
+                    const [comitente, cliente, asesor] = key.split('||');
+                    const share = totalComs > 0 ? ((val / totalComs) * 100).toFixed(1) : 0;
+                    return `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="py-2 font-bold text-navy-900 truncate max-w-[150px]">${cliente} <span class="text-[10px] text-slate-400 block font-normal">#${comitente}</span></td>
+                            <td class="py-2 text-slate-500 truncate max-w-[120px] text-[11px]">${asesor}</td>
+                            <td class="py-2 text-right font-bold text-navy-900">${formatCurrency(val)}</td>
+                            <td class="py-2 text-right font-semibold text-sky-600">${share}%</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Top Tickers & Flujo
+            const tickerMap = {};
+            appState.comisiones.forEach(r => {
+                if (!tickerMap[r.ticker]) tickerMap[r.ticker] = { total: 0, compra: 0, venta: 0, ops: 0 };
+                const t = tickerMap[r.ticker];
+                t.total += r.comisionDolarizada;
+                t.ops += 1;
+                const desc = r.descripcion.toUpperCase();
+                const tipo = r.tipo.toUpperCase();
+                if (desc.includes('COMPRA') || tipo.includes('COMPRA')) t.compra += r.comisionDolarizada;
+                else if (desc.includes('VENTA') || tipo.includes('VENTA')) t.venta += r.comisionDolarizada;
+            });
+            const sortedTickers = Object.entries(tickerMap).sort((a,b) => b[1].total - a[1].total).slice(0, 8);
+            const tbodyTickers = document.getElementById('table-top-tickers');
+            if (sortedTickers.length > 0) {
+                tbodyTickers.innerHTML = sortedTickers.map(([ticker, data]) => {
+                    const pCompra = data.total ? ((data.compra / data.total) * 100).toFixed(0) : 0;
+                    const pVenta = data.total ? ((data.venta / data.total) * 100).toFixed(0) : 0;
+                    return `
+                        <tr class="hover:bg-slate-50 transition font-medium">
+                            <td class="py-2 font-bold text-navy-900">${ticker}</td>
+                            <td class="py-2 text-right font-bold">${formatCurrency(data.total)}</td>
+                            <td class="py-2 text-right text-emerald-600">${pCompra}%</td>
+                            <td class="py-2 text-right text-rose-600">${pVenta}%</td>
+                            <td class="py-2 text-right text-slate-500">${data.ops}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Render: Página 2 (Cluster & Oportunidades)
+        function renderCluster() {
+            if (!appState.cluster.length) return;
+
+            // 1. Descubiertos Alerta (Filtro estricto: > -$50.000 ARS o > -$50 USD en Cable/MEP)
+            const descubiertos = appState.cluster
+                .filter(c => c.pesos < -50000 || c.mep < -50 || c.cable < -50)
+                .map(c => ({
+                    ...c,
+                    defUSD: Math.min(0, c.pesos / 1200) + Math.min(0, c.mep) + Math.min(0, c.cable)
+                }))
+                .sort((a, b) => a.defUSD - b.defUSD); // Mayor deuda primero
+
+            const alertEl = document.getElementById('alert-descubiertos');
+            const tableDesc = document.getElementById('table-descubiertos');
+            if (descubiertos.length > 0) {
+                alertEl.classList.remove('hidden');
+                tableDesc.innerHTML = descubiertos.map(c => `
+                    <tr class="hover:bg-amber-100/50 transition">
+                        <td class="py-2 font-bold">${c.cliente} <span class="text-[10px] text-amber-800/70 block">#${c.comitente}</span></td>
+                        <td class="py-2 text-slate-800 text-xs">${c.asesor}</td>
+                        <td class="py-2 text-right font-mono ${c.pesos < -50000 ? 'text-rose-700 font-bold bg-rose-50/50 px-1 rounded' : ''}">$${c.pesos.toLocaleString('es-AR')}</td>
+                        <td class="py-2 text-right font-mono ${c.mep < -50 ? 'text-rose-700 font-bold bg-rose-50/50 px-1 rounded' : ''}">u$s ${c.mep.toFixed(2)}</td>
+                        <td class="py-2 text-right font-mono ${c.cable < -50 ? 'text-rose-700 font-bold bg-rose-50/50 px-1 rounded' : ''}">u$s ${c.cable.toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            } else {
+                alertEl.classList.add('hidden');
+            }
+
+            // 2. Top Clientes Cluster
+            const sortBy = document.getElementById('sort-cluster-top').value;
+            const sortedCluster = [...appState.cluster].sort((a,b) => b[sortBy] - a[sortBy]).slice(0, 8);
+            document.getElementById('table-top-cluster').innerHTML = sortedCluster.map(c => `
+                <tr class="hover:bg-slate-50 transition font-medium">
+                    <td class="py-2 text-navy-900 font-bold truncate max-w-[150px]">${c.cliente}</td>
+                    <td class="py-2 text-slate-500 truncate max-w-[120px] text-[11px]">${c.asesor}</td>
+                    <td class="py-2 text-right font-bold text-navy-900">${formatCurrency(c.aum)}</td>
+                    <td class="py-2 text-right text-slate-600">${formatCurrency(c.com180)}</td>
+                </tr>
+            `).join('');
+
+            // 3. Oportunidades & Simulador: ROA ESTRICTAMENTE SEGÚN COMISIONES 180d
+            const opps = appState.cluster.map(c => {
+                const liq = (c.pesos / 1200) + c.mep + c.cable;
+                const roa180Est = c.aum > 0 ? ((c.com180 * 2) / c.aum) * 100 : 0;
+                return { ...c, liq, roa180Est };
+            }).filter(c => c.roa180Est < 1.20 && c.liq > 100).sort((a,b) => b.liq - a.liq).slice(0, 8);
+
+            document.getElementById('table-opportunities').innerHTML = opps.length ? opps.map(c => `
+                <tr class="hover:bg-slate-50 transition font-medium">
+                    <td class="py-2 text-navy-900 font-bold truncate max-w-[150px]">${c.cliente}</td>
+                    <td class="py-2 text-right font-bold text-emerald-600">${formatCurrency(c.liq)}</td>
+                    <td class="py-2 text-right text-slate-600">${formatCurrency(c.aum)}</td>
+                    <td class="py-2 text-right font-bold text-warning-600">${c.roa180Est.toFixed(2)}%</td>
+                </tr>
+            `) : `<tr><td colspan="4" class="py-4 text-center text-slate-400">Sin cuentas sub-óptimas con liquidez.</td></tr>`;
+
+            // Simulador en base a Comisiones 180 del Cluster
+            const bps = parseFloat(document.getElementById('sim-bps').value);
+            const subOptimos = appState.cluster.filter(c => (c.aum > 0 ? ((c.com180 * 2)/c.aum)*100 : 0) < 1.20);
+            const totalAUMSub = subOptimos.reduce((sum, c) => sum + c.aum, 0);
+            document.getElementById('sim-aum-sub').textContent = formatCurrency(totalAUMSub);
+            document.getElementById('sim-revenue').textContent = `${formatCurrency(totalAUMSub * bps)} / año`;
+        }
+
+        // Render: Página 3 (Tenencias & Cartera)
+        function renderTenencias() {
+            if (!appState.tenencias.length) return;
+            const filterTicker = document.getElementById('filter-ticker').value.toUpperCase().trim();
+            const filterDias = parseInt(document.getElementById('filter-dias').value) || 0;
+            const sortBy = document.getElementById('sort-tenencias').value;
+
+            let processed = appState.tenencias.map(t => {
+                const costo = t.nominales * t.preciocompra;
+                const gananciaAbs = t.tenencia - costo;
+                const gananciaPct = costo > 0 ? (gananciaAbs / costo) * 100 : 0;
+                return { ...t, costo, gananciaAbs, gananciaPct };
+            }).filter(t => {
+                const matchTicker = filterTicker === "" || t.ticker.toUpperCase().includes(filterTicker) || t.instrumento.toUpperCase().includes(filterTicker);
+                return matchTicker && t.diastenencia >= filterDias;
+            });
+
+            if (sortBy === 'valuacion') processed.sort((a,b) => b.tenencia - a.tenencia);
+            else if (sortBy === 'ganancia-abs') processed.sort((a,b) => b.gananciaAbs - a.gananciaAbs);
+            else if (sortBy === 'ganancia-pct') processed.sort((a,b) => b.gananciaPct - a.gananciaPct);
+            else if (sortBy === 'dias') processed.sort((a,b) => b.diastenencia - a.diastenencia);
+
+            const totalVal = processed.reduce((sum, t) => sum + t.tenencia, 0);
+            document.getElementById('ten-total-val').textContent = formatCurrency(totalVal);
+
+            if (processed.length > 0) {
+                const topGain = [...processed].sort((a,b) => b.gananciaAbs - a.gananciaAbs)[0];
+                document.getElementById('ten-top-gain').textContent = topGain.ticker;
+                document.getElementById('ten-top-gain-val').textContent = `+${formatCurrency(topGain.gananciaAbs)} (${topGain.gananciaPct.toFixed(1)}%)`;
+
+                const tCount = {};
+                processed.forEach(t => tCount[t.ticker] = (tCount[t.ticker] || 0) + 1);
+                const topTickerEntry = Object.entries(tCount).sort((a,b) => b[1] - a[1])[0];
+                document.getElementById('ten-top-ticker').textContent = topTickerEntry[0];
+                document.getElementById('ten-top-ticker-count').textContent = `${topTickerEntry[1]} cuentas`;
+            }
+
+            const tbody = document.getElementById('table-tenencias');
+            const toShow = processed.slice(0, 50);
+            if (toShow.length > 0) {
+                tbody.innerHTML = toShow.map(t => {
+                    const isPos = t.gananciaAbs >= 0;
+                    return `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="py-2 font-bold text-navy-900 truncate max-w-[160px]">${t.cliente}</td>
+                            <td class="py-2 text-slate-500 truncate max-w-[120px] text-[11px]">${t.asesor}</td>
+                            <td class="py-2 font-bold text-navy-900">${t.ticker} <span class="text-slate-400 font-normal text-[10px] block truncate max-w-[150px]">${t.instrumento}</span></td>
+                            <td class="py-2 text-right font-mono text-slate-600">${t.nominales.toLocaleString('es-AR')}</td>
+                            <td class="py-2 text-right font-mono text-slate-600">$${t.preciocompra.toFixed(2)}</td>
+                            <td class="py-2 text-right font-bold text-navy-900">${formatCurrency(t.tenencia)}</td>
+                            <td class="py-2 text-right font-bold ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
+                                ${isPos ? '+' : ''}${formatCurrency(t.gananciaAbs)} <span class="text-[10px] block font-normal opacity-80">(${isPos ? '+' : ''}${t.gananciaPct.toFixed(1)}%)</span>
+                            </td>
+                            <td class="py-2 text-right text-slate-500">${t.diastenencia} d</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-400">Sin coincidencias.</td></tr>`;
+            }
+        }
+
+        // Render: Página 4 (Consolidado por Ticker)
+        function renderConsolidadoTickers() {
+            if (!appState.tenencias.length && !appState.comisiones.length) return;
+
+            const filterText = document.getElementById('filter-consolidado-ticker').value.toUpperCase().trim();
+            const minVal = parseFloat(document.getElementById('filter-cons-min-val').value) || 0;
+            const minCuentas = parseInt(document.getElementById('filter-cons-min-cuentas').value) || 1;
+            const soloComs = document.getElementById('filter-cons-solo-coms').checked;
+            const sortBy = document.getElementById('sort-consolidado').value;
+
+            const totalAUMEquipo = appState.cluster.reduce((s, r) => s + r.aum, 0) || appState.tenencias.reduce((s, t) => s + t.tenencia, 0);
+
+            const comsPorTicker = {};
+            appState.comisiones.forEach(c => comsPorTicker[c.ticker] = (comsPorTicker[c.ticker] || 0) + c.comisionDolarizada);
+
+            const tickerGroups = {};
+            appState.tenencias.forEach(t => {
+                if (!tickerGroups[t.ticker]) {
+                    tickerGroups[t.ticker] = { ticker: t.ticker, val: 0, cuentas: 0, diasTotal: 0, gananciaPctSum: 0, items: [] };
+                }
+                const g = tickerGroups[t.ticker];
+                const costo = t.nominales * t.preciocompra;
+                const ganPct = costo > 0 ? ((t.tenencia - costo) / costo) * 100 : 0;
+                g.val += t.tenencia;
+                g.cuentas += 1;
+                g.diasTotal += t.diastenencia;
+                g.gananciaPctSum += ganPct;
+                g.items.push({ ...t, ganPct });
+            });
+
+            Object.keys(comsPorTicker).forEach(tk => {
+                if (!tickerGroups[tk] && tk !== 'Varios') {
+                    tickerGroups[tk] = { ticker: tk, val: 0, cuentas: 0, diasTotal: 0, gananciaPctSum: 0, items: [] };
+                }
+            });
+
+            let consArray = Object.values(tickerGroups).map(g => ({
+                ...g,
+                share: totalAUMEquipo > 0 ? (g.val / totalAUMEquipo) * 100 : 0,
+                diasProm: g.cuentas > 0 ? Math.round(g.diasTotal / g.cuentas) : 0,
+                ganProm: g.cuentas > 0 ? g.gananciaPctSum / g.cuentas : 0,
+                comisionesMes: comsPorTicker[g.ticker] || 0
+            })).filter(g => {
+                const matchText = filterText === "" || g.ticker.toUpperCase().includes(filterText);
+                const matchVal = g.val >= minVal;
+                const matchCuentas = g.cuentas >= minCuentas;
+                const matchComs = !soloComs || g.comisionesMes > 0;
+                return matchText && matchVal && matchCuentas && matchComs;
+            });
+
+            if (sortBy === 'val') consArray.sort((a, b) => b.val - a.val);
+            else if (sortBy === 'comisiones') consArray.sort((a, b) => b.comisionesMes - a.comisionesMes);
+            else if (sortBy === 'ganancia') consArray.sort((a, b) => b.ganProm - a.ganProm);
+            else if (sortBy === 'cuentas') consArray.sort((a, b) => b.cuentas - a.cuentas);
+
+            document.getElementById('tick-total-count').textContent = consArray.length;
+            if (consArray.length > 0) {
+                const topVal = [...consArray].sort((a,b) => b.val - a.val)[0];
+                document.getElementById('tick-top-aum').textContent = topVal.ticker;
+                document.getElementById('tick-top-aum-val').textContent = formatCurrency(topVal.val);
+
+                const topComs = [...consArray].sort((a,b) => b.comisionesMes - a.comisionesMes)[0];
+                document.getElementById('tick-top-coms').textContent = topComs.ticker;
+                document.getElementById('tick-top-coms-val').textContent = `${formatCurrency(topComs.comisionesMes)} en comisiones`;
+            } else {
+                document.getElementById('tick-top-aum').textContent = "N/A";
+                document.getElementById('tick-top-aum-val').textContent = "$0.00";
+                document.getElementById('tick-top-coms').textContent = "N/A";
+                document.getElementById('tick-top-coms-val').textContent = "$0.00";
+            }
+
+            const tbody = document.getElementById('table-consolidado-tickers');
+            if (consArray.length > 0) {
+                tbody.innerHTML = consArray.map(g => {
+                    const isPos = g.ganProm >= 0;
+                    return `
+                        <tr class="hover:bg-sky-50/50 transition font-medium cursor-pointer" onclick="openTickerModal('${g.ticker}')">
+                            <td class="py-2.5 font-black text-navy-900 text-sm flex items-center space-x-1.5">
+                                <span class="w-2 h-2 rounded-full bg-sky-500 inline-block"></span>
+                                <span>${g.ticker}</span>
+                            </td>
+                            <td class="py-2.5 text-right font-bold text-navy-900">${formatCurrency(g.val)}</td>
+                            <td class="py-2.5 text-right font-semibold text-slate-600">${g.share.toFixed(1)}%</td>
+                            <td class="py-2.5 text-right font-bold text-sky-600">${g.cuentas} <span class="text-[10px] font-normal text-slate-400">cuit(s)</span></td>
+                            <td class="py-2.5 text-right font-bold text-emerald-600">${formatCurrency(g.comisionesMes)}</td>
+                            <td class="py-2.5 text-right font-bold ${isPos ? 'text-emerald-600' : 'text-rose-600'}">${isPos ? '+' : ''}${g.ganProm.toFixed(1)}%</td>
+                            <td class="py-2.5 text-right text-slate-500">${g.diasProm} d</td>
+                            <td class="py-2.5 text-center">
+                                <span class="text-[11px] bg-slate-100 hover:bg-sky-100 text-slate-700 hover:text-sky-700 px-2 py-1 rounded border border-slate-200 transition font-bold">Ver Clientes →</span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-400">Sin resultados con los filtros seleccionados.</td></tr>`;
+            }
+        }
+
+        function openTickerModal(ticker) {
+            const items = appState.tenencias.filter(t => t.ticker === ticker);
+            document.getElementById('modal-ticker-title').textContent = `Tenedores actuales de: ${ticker}`;
+            const tbody = document.getElementById('modal-ticker-body');
+
+            if (items.length > 0) {
+                items.sort((a,b) => b.tenencia - a.tenencia);
+                tbody.innerHTML = items.map(t => {
+                    const costo = t.nominales * t.preciocompra;
+                    const ganPct = costo > 0 ? ((t.tenencia - costo) / costo) * 100 : 0;
+                    const isPos = ganPct >= 0;
+                    return `
+                        <tr class="hover:bg-slate-50">
+                            <td class="py-2 font-bold text-navy-900">${t.cliente} <span class="text-[10px] text-slate-400 block font-normal">#${t.comitente}</span></td>
+                            <td class="py-2 text-slate-500 text-xs">${t.asesor}</td>
+                            <td class="py-2 text-right font-mono text-slate-600">${t.nominales.toLocaleString('es-AR')}</td>
+                            <td class="py-2 text-right font-bold text-navy-900">${formatCurrency(t.tenencia)}</td>
+                            <td class="py-2 text-right font-bold ${isPos ? 'text-emerald-600' : 'text-rose-600'}">${isPos ? '+' : ''}${ganPct.toFixed(1)}%</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Este ticker no tiene tenencias activas en cartera (registro transaccional).</td></tr>`;
+            }
+            document.getElementById('modal-ticker-detail').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-ticker-detail').classList.add('hidden');
+        }
+
+        // Carga de Datos de Ejemplo (SELECCIÓN ARGENTINA - Proyectando sobre mes de 30 días)
+        function loadSampleData() {
+            const sampleComs = [
+                { FechaConcertacion: "01/06/2026", Asesor: "Blanco Pan - Scaloni Lionel", Comitente: 100010, Cuenta: "MESSI LIONEL ANDRES", Tipo: "Boleto", Descripcion: "Boleto / VENTA / GGAL / $", Ticker: "GGAL", ComisionDolarizada: 3450.00 },
+                { FechaConcertacion: "05/06/2026", Asesor: "Blanco Pan - Aimar Pablo", Comitente: 230023, Cuenta: "MARTINEZ DAMIAN EMILIANO", Tipo: "Fondos", Descripcion: "Fondos / ESTRA3A", Ticker: "ESTRA3A", ComisionDolarizada: 1850.25 },
+                { FechaConcertacion: "10/06/2026", Asesor: "Blanco Pan - Samuel Walter", Comitente: 90009, Cuenta: "ALVAREZ JULIAN", Tipo: "Boleto", Descripcion: "Boleto / COMPRA / YPFD / $", Ticker: "YPFD", ComisionDolarizada: 1420.50 },
+                { FechaConcertacion: "12/06/2026", Asesor: "Blanco Pan - Scaloni Lionel", Comitente: 70007, Cuenta: "DE PAUL RODRIGO JAVIER", Tipo: "Boleto", Descripcion: "Boleto / COMPRA / AO28 / USD", Ticker: "AO28", ComisionDolarizada: 2900.00 },
+                { FechaConcertacion: "15/06/2026", Asesor: "Blanco Pan - Ayala Roberto", Comitente: 80008, Cuenta: "FERNANDEZ ENZO JEREMIAS", Tipo: "Boleto", Descripcion: "Boleto / COMPRA / MELI / $", Ticker: "MELI", ComisionDolarizada: 4100.80 },
+                { FechaConcertacion: "18/06/2026", Asesor: "Blanco Pan - Aimar Pablo", Comitente: 200020, Cuenta: "MAC ALLISTER ALEXIS", Tipo: "Boleto", Descripcion: "Boleto / COMPRA / IBIT / USD", Ticker: "IBIT", ComisionDolarizada: 2150.00 }
+            ];
+            processData(sampleComs, 'comisiones');
+            updateBadge('comisiones', true);
+
+            const sampleCluster = [
+                { idcuenta: 100010, comitente: 100010, cuenta: "MESSI LIONEL ANDRES", asesor: "Blanco Pan - Scaloni Lionel", "AUM en Dolares": 1500000, "Comision 180": 8500, arancel: "IFA 4", "$ Operables CI": 250000, "MEP Operables CI": 85000, cv7000: 5000, "Cable Operables CI": 45000 },
+                { idcuenta: 230023, comitente: 230023, cuenta: "MARTINEZ DAMIAN EMILIANO", asesor: "Blanco Pan - Aimar Pablo", "AUM en Dolares": 850000, "Comision 180": 4100, arancel: "IFA 3", "$ Operables CI": -85000, "MEP Operables CI": -120, cv7000: 0, "Cable Operables CI": 0 },
+                { idcuenta: 90009, comitente: 90009, cuenta: "ALVAREZ JULIAN", asesor: "Blanco Pan - Samuel Walter", "AUM en Dolares": 620000, "Comision 180": 2900, arancel: "IFA 3", "$ Operables CI": 450000, "MEP Operables CI": 32000, cv7000: 0, "Cable Operables CI": 12000 },
+                { idcuenta: 70007, comitente: 70007, cuenta: "DE PAUL RODRIGO JAVIER", asesor: "Blanco Pan - Scaloni Lionel", "AUM en Dolares": 940000, "Comision 180": 5200, arancel: "IFA 4", "$ Operables CI": 15000, "MEP Operables CI": -80, cv7000: 0, "Cable Operables CI": -150 },
+                { idcuenta: 80008, comitente: 80008, cuenta: "FERNANDEZ ENZO JEREMIAS", asesor: "Blanco Pan - Ayala Roberto", "AUM en Dolares": 1100000, "Comision 180": 6100, arancel: "IFA 4", "$ Operables CI": 80000, "MEP Operables CI": 15000, cv7000: 2000, "Cable Operables CI": 8000 }
+            ];
+            processData(sampleCluster, 'cluster');
+            updateBadge('cluster', true);
+
+            const sampleTenencias = [
+                { comitente: 100010, cuenta: "MESSI LIONEL ANDRES", asesor: "Blanco Pan - Scaloni Lionel", tenencia: 450000.00, diastenencia: 180, preciocompra: 0.9200, instrumento: "BONO TESORO NACIONAL 6% 31/10/28 USD", ticker: "AO28", nominales: 460000 },
+                { comitente: 70007, cuenta: "DE PAUL RODRIGO JAVIER", asesor: "Blanco Pan - Scaloni Lionel", tenencia: 185000.00, diastenencia: 90, preciocompra: 0.9436, instrumento: "BONO TESORO NACIONAL 6% 31/10/28 USD", ticker: "AO28", nominales: 189000 },
+                { comitente: 230023, cuenta: "MARTINEZ DAMIAN EMILIANO", asesor: "Blanco Pan - Aimar Pablo", tenencia: 240000.00, diastenencia: 310, preciocompra: 5.4000, instrumento: "CEDEAR ISHARES BITCOIN TR (IBIT)", ticker: "IBIT", nominales: 41000 },
+                { comitente: 80008, cuenta: "FERNANDEZ ENZO JEREMIAS", asesor: "Blanco Pan - Ayala Roberto", tenencia: 320000.00, diastenencia: 420, preciocompra: 14.8000, instrumento: "CEDEAR MERCADOLIBRE INC.", ticker: "MELI", nominales: 18500 },
+                { comitente: 90009, cuenta: "ALVAREZ JULIAN", asesor: "Blanco Pan - Samuel Walter", tenencia: 150000.00, diastenencia: 65, preciocompra: 28.5000, instrumento: "ACCIONES GRUPO FINANCIERO GALICIA", ticker: "GGAL", nominales: 5200 }
+            ];
+            processData(sampleTenencias, 'tenencias');
+            updateBadge('tenencias', true);
+        }
+    </script>
+</body>
+</html>
