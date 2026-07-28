@@ -197,10 +197,10 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex flex-col">
                     <div class="flex justify-between items-center border-b pb-3 mb-4">
-                        <h4 class="font-bold text-navy-900 text-sm">Top Clientes Cluster (AUM vs Comisiones 180d)</h4>
+                        <h4 class="font-bold text-navy-900 text-sm">Top Clientes Cluster (AUM vs Facturación 180d)</h4>
                         <select id="sort-cluster-top" onchange="renderCluster()" class="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:border-sky-500">
                             <option value="aum">Ordenar por AUM</option>
-                            <option value="com180">Ordenar por Comisiones 180d</option>
+                            <option value="com180">Ordenar por Facturación 180d</option>
                         </select>
                     </div>
                     <div class="overflow-x-auto flex-1">
@@ -224,7 +224,7 @@
                     <div class="flex justify-between items-center border-b pb-3 mb-4">
                         <div>
                             <h4 class="font-bold text-navy-900 text-sm">Oportunidades: ROA Bajo & Alta Liquidez</h4>
-                            <p class="text-[11px] text-slate-400">ROA anualizado según Comisiones 180d &lt; 1.2% y capital disponible</p>
+                            <p class="text-[11px] text-slate-400">ROA anualizado según Facturación 180d &lt; 1.2% y capital disponible</p>
                         </div>
                     </div>
                     <div class="overflow-x-auto flex-1">
@@ -248,7 +248,7 @@
             <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                 <div class="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 mb-4 gap-3">
                     <div>
-                        <h4 class="font-bold text-navy-900 text-sm">Simulador de Optimización de Aranceles (ROA según Comisiones 180d)</h4>
+                        <h4 class="font-bold text-navy-900 text-sm">Simulador de Optimización de Aranceles (ROA según Facturación 180d)</h4>
                         <p class="text-xs text-slate-500">Evalúa el impacto de ajustar esquemas comerciales en cuentas con ROA 180d sub-óptimo (&lt; 1.2%).</p>
                     </div>
                     <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded border border-slate-200 text-xs">
@@ -792,7 +792,7 @@
                 </tr>
             `).join('');
 
-            // 3. Oportunidades & Simulador: ROA ESTRICTAMENTE SEGÚN COMISIONES 180d
+            // 3. Oportunidades & Simulador: ROA ESTRICTAMENTE SEGÚN Facturación 180d
             const opps = appState.cluster.map(c => {
                 const liq = (c.pesos / 1200) + c.mep + c.cable;
                 const roa180Est = c.aum > 0 ? ((c.com180 * 2) / c.aum) * 100 : 0;
@@ -808,7 +808,7 @@
                 </tr>
             `) : `<tr><td colspan="4" class="py-4 text-center text-slate-400">Sin cuentas sub-óptimas con liquidez.</td></tr>`;
 
-            // Simulador en base a Comisiones 180 del Cluster
+            // Simulador en base a Facturación 180 del Cluster
             const bps = parseFloat(document.getElementById('sim-bps').value);
             const subOptimos = appState.cluster.filter(c => (c.aum > 0 ? ((c.com180 * 2)/c.aum)*100 : 0) < 1.20);
             const totalAUMSub = subOptimos.reduce((sum, c) => sum + c.aum, 0);
